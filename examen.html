@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Festival Prisma — Panel de coordinación</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, sans-serif;
+      color: #202936;
+      background: #f2f5f7;
+    }
+
+    body {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    header, section, aside {
+      margin-bottom: 1rem;
+      padding: 1.25rem;
+      border: 1px solid #d5dde5;
+      border-radius: 0.65rem;
+      background: #fff;
+    }
+
+    h1, h2 {
+      margin-top: 0;
+    }
+
+    fieldset {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin: 0;
+      padding: 1rem;
+      border: 1px solid #d5dde5;
+      border-radius: 0.5rem;
+    }
+
+    label {
+      display: grid;
+      gap: 0.35rem;
+      min-width: 12rem;
+    }
+
+    input, button {
+      padding: 0.55rem;
+      font: inherit;
+    }
+
+    button {
+      margin: 0.35rem 0.35rem 0.35rem 0;
+      cursor: pointer;
+    }
+
+    output {
+      font-weight: 700;
+    }
+
+    .turno {
+      display: flex;
+      align-items: end;
+      gap: 0.75rem;
+      margin: 0.5rem 0;
+    }
+
+    .turno-extenso, .alerta {
+      color: #9d2525;
+      font-weight: 700;
+    }
+
+    .correcto {
+      color: #17633a;
+      font-weight: 700;
+    }
+
+    .pantalla-publica {
+      width: 100%;
+      min-height: 6rem;
+      margin-top: 1rem;
+      padding: 1rem;
+      border: 1px solid #d5dde5;
+      border-radius: 0.5rem;
+      background: #e8f3ff;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Festival Prisma</h1>
+    <p>Panel de coordinación de recursos, turnos y comunicación con el público.</p>
+  </header>
+
+  <main>
+    <section aria-labelledby="datos-title">
+      <h2 id="datos-title">Datos de la jornada</h2>
+      <fieldset>
+        <legend>Planificación</legend>
+        <label for="asistencia">Asistencia prevista (personas)
+          <input id="asistencia" type="text" value="850" inputmode="numeric">
+        </label>
+        <label for="dias">Duración del festival (días)
+          <input id="dias" type="text" value="2" inputmode="numeric">
+        </label>
+        <label for="agua-persona">Agua por persona y día (litros; coma decimal)
+          <input id="agua-persona" type="text" value="2,5" inputmode="decimal">
+        </label>
+        <label for="ajuste-caja">Ajuste de presupuesto (€; punto decimal)
+          <input id="ajuste-caja" type="text" value="-125.50" inputmode="decimal">
+        </label>
+        <label for="bidones">Bidones de 25 litros disponibles
+          <input id="bidones" type="text" value="180" inputmode="numeric">
+        </label>
+      </fieldset>
+      <button id="calcular-recursos" type="button">Calcular recursos</button>
+      <button id="publicar-informe" type="button">Publicar informe</button>
+      <p>Agua necesaria: <output id="agua-total">Pendiente</output></p>
+      <p>Bidones necesarios: <output id="bidones-necesarios">Pendiente</output></p>
+      <p>Presupuesto estimado: <output id="presupuesto">Pendiente</output></p>
+      <p id="estado-recursos" role="status">Estado: pendiente de cálculo</p>
+    </section>
+
+    <section aria-labelledby="turnos-title">
+      <h2 id="turnos-title">Turnos del equipo</h2>
+      <p>Añade los turnos previstos y consulta la carga horaria del equipo.</p>
+      <button id="anadir-turno" type="button">Añadir turno</button>
+      <div id="lista-turnos">
+        <p id="sin-turnos">Todavía no se han añadido turnos.</p>
+      </div>
+      <button id="resumir-turnos" type="button">Calcular resumen de turnos</button>
+      <p>Horas totales: <output id="horas-totales">Pendiente</output></p>
+      <p>Media por turno: <output id="media-turno">Pendiente</output></p>
+      <p>Turnos de más de 8 horas: <output id="turnos-extensos">Pendiente</output></p>
+    </section>
+
+    <section aria-labelledby="pantalla-title">
+      <h2 id="pantalla-title">Pantalla pública del festival</h2>
+      <label for="mensaje-publico">Mensaje para el público
+        <input id="mensaje-publico" type="text" value="Bienvenidas y bienvenidos al Festival Prisma.">
+      </label>
+      <button id="actualizar-pantalla" type="button">Actualizar pantalla pública</button>
+      <div id="pantalla-publica" class="pantalla-publica" aria-live="polite">
+        <h3>Festival Prisma</h3>
+        <p id="texto-publico">Bienvenidas y bienvenidos al Festival Prisma.</p>
+        <p id="datos-ventana">Información de la página pendiente de actualizar.</p>
+      </div>
+    </section>
+  </main>
+
+  <template id="plantilla-turno">
+    <div class="turno">
+      <label>Horas del turno
+        <input class="horas-turno" type="text" value="6" inputmode="decimal">
+      </label>
+      <button class="quitar-turno" type="button">Quitar turno</button>
+    </div>
+  </template>
+
+  <script>
+    //Apartado 1: 
+    //Miramos si se le da click a "calcular-recursos"(el botón).
+    document.getElementById("calcular-recursos").onclick = function(){
+      //Guardamos los valores de los input en las variables, y creamos valido para que cambie en el momento en el que un input no cumple las condiciones.
+      let asistencia = document.getElementById("asistencia").value;
+      let dias = document.getElementById("dias").value;
+      let aguaP = document.getElementById("agua-persona").value;
+      let ajusteC = document.getElementById("ajuste-caja").value;
+      let bidones = document.getElementById("bidones").value;
+      let valido = true;
+
+      //En todos cambiamos el nombre de la clase para que se ponga el texto en rojo y la variable valido.
+      if(asistencia<0){
+        document.getElementById("asistencia").parentElement.className = "alerta";
+        valido = false;
+      }else{
+        document.getElementById("asistencia").parentElement.className = "";
+      }
+
+      if(bidones<0){
+        document.getElementById("bidones").parentElement.className = "alerta";
+        valido = false;
+      }else{
+        document.getElementById("bidones").parentElement.className = "";
+      }
+
+      if(dias<0){
+        document.getElementById("dias").parentElement.className = "alerta";
+        valido = false;
+      }else{
+        document.getElementById("dias").parentElement.className = "";
+      }
+      
+      //Esta expresion regular detecta si tiene punto decimal o signo(realmente detecta si tiene coma, pero al tener ! al principio seria como si pones expresion == false).
+      if(aguaP<0||!/^-?(?:\d+([,]\d*)?|[,]\d+)$/.test(aguaP)){
+        document.getElementById("agua-persona").parentElement.className = "alerta";
+        valido = false;
+      }else{
+        document.getElementById("agua-persona").parentElement.className = "";
+      }
+
+      //Esta expresion regular detecta si tiene coma decimal o signo(realmente detecta si tiene punto, pero al tener ! al principio seria como si pones expresion == false).
+      if(!/^-?(?:\d+([.]\d*)?|[.]\d+)$/.test(ajusteC)){
+        document.getElementById("ajuste-caja").parentElement.className = "alerta";
+        valido = false;
+      }else{
+        document.getElementById("ajuste-caja").parentElement.className = "";
+      }
+      //Fin apartado 1.
+
+      //Apartado 2:
+      //Si todos los datos son correctos, valido es true y se hacen todos los cálculos necesarios.
+      if(valido){  
+        //Se usa parseFloat o parseInt para transaformalo a Number y poder operar con ellos.
+        document.getElementById("agua-total").textContent = (parseFloat(aguaP) * parseInt(asistencia) * parseInt(dias));
+
+        //Si faltan bidones hay que decirlo.
+        if(bidones<parseFloat(document.getElementById("agua-total").value)/25){
+          document.getElementById("bidones-necesarios").textContent = "Faltan bidones";
+        }else{
+          document.getElementById("bidones-necesarios").textContent = Math.ceil(parseFloat(document.getElementById("agua-total").value)/25);
+        }
+
+        //Hacemos el calculo y actualizamos valores.
+        document.getElementById("presupuesto").textContent = (parseInt(asistencia)*parseInt(dias)*12)+(parseFloat(ajusteC));
+        document.getElementById("estado-recursos").textContent= "Estado: calculado";
+      }else{
+
+        //Si alguno de los datos está vacio no se pueden hacer los cálculos y hay que avisar.
+        document.getElementById("agua-total").textContent = "Faltan datos";
+        document.getElementById("bidones-necesarios").textContent = "Faltan datos";
+        document.getElementById("presupuesto").textContent = "Faltan datos";
+        document.getElementById("estado-recursos").textContent = "Estado: pendiente de cálculo";
+      }
+    }
+
+    //Miramos si se le da click a "publicar-informe"(el botón).
+    document.getElementById("publicar-informe").onclick = function(){
+      //Guardamos los valores que hemos calculado antes en estas variables.
+      let agua = document.getElementById("agua-total").value;
+      let bidones = document.getElementById("bidones-necesarios").value;
+      let presupuesto = document.getElementById("presupuesto").value;
+
+      //Comprobamos si las variables son numeros(Para saber si se han hecho los cálculos correctamente, si no son numeros pueden ser "Pendiente" o "Faltan datos").
+      if(Number.isFinite(parseInt(agua)) && Number.isFinite(parseInt(bidones)) && Number.isFinite(parseFloat(presupuesto))){
+
+        //Si se cumple le cambiamos el texto al boton de publicar informe, creamos los botones de confirmar y cancelar, y desactivamos el de publicar informe para que no se puedan duplicar los otros dos.
+        document.getElementById("publicar-informe").textContent = "¿Seguro?";
+        document.getElementById("publicar-informe").disabled = true;
+
+        //Con insertAjacentHTML lo que hacemos es, a lo que hemos puesto antes(document.getElement...) escribimos HTML despues, como si en el html escribiesemos codigo en la siguiente línea(afterend hace que lo escriba en la siguiente línea).
+        document.getElementById("publicar-informe").insertAdjacentHTML("afterend","<button id='confirmar' type='button'>Confirmar</button>");
+
+        //Con nextElementSibling, cogemos el siguiente elemento de el elemento al que nos estamos refiriendo, se hace así porque no podemos referirnos a el boton de confirmar porque lo acabamos de crear.
+        document.getElementById("publicar-informe").nextElementSibling.insertAdjacentHTML("afterend","<button id='cancelar' type='button'>Cancelar</button>");
+        
+        //Apartado 4(hay más del apartado 4 al final):
+        //Miramos si se da click a "confirmar"(el botón que hemos creado).
+        document.getElementById("confirmar").onclick = function(){
+
+          //Volvemos a poner los botones como estaban y eliminamos los que hemos creado.
+          document.getElementById("publicar-informe").textContent = "Publicar informe";
+          document.getElementById("publicar-informe").disabled = false;
+          document.getElementById("cancelar").remove();
+          document.getElementById("confirmar").remove();
+
+          //Guardamos los valores de lo que hemos calculado en las variables.
+          let agua = document.getElementById("agua-total").value;
+          let bidones = document.getElementById("bidones-necesarios").value;
+          let presupuesto = document.getElementById("presupuesto").value;
+          
+          //Creamos el informe.
+          let informe = "Informe de la joranda\n"
+          + "Agua necesitada: " + agua + " L.\n"
+          + "Bidones necesitados: " + bidones + " bidones de 25 L.\n"
+          + "Presupuesto estimado: " + presupuesto + " €. ";
+          
+          //Mandamos el informe con alert.
+          alert(informe);
+        }
+        //Fin apartado 4.
+
+        //Esto sigue siendo apartado 2.
+        //Miramos si se le da click a "cancelar"(el botón que hemos creado).
+        document.getElementById("cancelar").onclick = function(){
+
+          //Volvemos a poner los botones como estaban y eliminamos los que hemos creado.
+          document.getElementById("publicar-informe").textContent = "Publicar informe";
+          document.getElementById("publicar-informe").disabled = false;
+          document.getElementById("cancelar").remove();
+          document.getElementById("confirmar").remove();
+        }
+        
+      }else{
+
+        //Si alguno de los valores no es un numero avisamos.
+        alert("Calcula los recursos primero.")
+      }
+    }
+
+    //Apartado 3:
+    //Miramos si se le da click a "anadir-turno"(el botón).
+    document.getElementById("anadir-turno").onclick = function(){
+      //Creamos num, que va a ser el índice de los fielset que vamos a crear con cada turno.
+      let num = document.getElementsByTagName("fieldset").length;
+      
+      //Creamos el elemento como label para despues editar el html y poner un label con un input dentro(un input con titulo), lo hacemos con los dos input.
+      let input_inicio = document.createElement("label");
+      input_inicio.innerHTML = "<label for='hora-empieza'>Hora de inicio<input id='hora-empieza' type='time' value=00:00 inputmode='numeric' style='padding: 0.55rem;font: inherit;'></label>";
+      let input_final = document.createElement("label");
+      input_final.innerHTML = "<label for='hora-termina'>Hora de finaliación<input id='hora-termina' type='time' value=00:00 inputmode='numeric' style='padding: 0.55rem;font: inherit;'></label>";
+      
+      //Creamos el boton de quitar turno como un label para editarlo y transformarlo a button, porque si lo crear como button, se duplica el botón.
+      let quitar = document.createElement("label");
+      quitar.innerHTML = "<button id='quitar-turno' type='button' style='padding: 0.55rem;font: inherit;'>Quitar turno</button>";
+      
+      //Creamos el fieldset que va a agrupar cada turno, con nextElementSibiling.insertAdjacentHTML que ya hemos explicado, y despues le añadimos el índice, que nos va a determinar cual es el numero del turno.
+      document.getElementById("turnos-title").nextElementSibling.insertAdjacentHTML("afterend","<fieldset id = 'input_turno'><legend>Turno </legend></fieldset>");
+      document.getElementById("input_turno").firstChild.textContent += num;
+
+      //Agregamos los input y el boton de quitar el turno, y editamos el texto de "sin-turnos" porque ya hay turnos.
+      document.getElementById("input_turno").appendChild(input_inicio);
+      document.getElementById("input_turno").appendChild(input_final);
+      document.getElementById("input_turno").appendChild(quitar);
+      document.getElementById("sin-turnos").textContent = "";
+
+      //Miramos si existe el id "quitar-turno", porque significa que hay algun turno, si no es así miramos si existe el input-turno, si tampoco existe decimos que no hay turnos.
+      if(!document.getElementById("quitar-turno")){
+        if(!document.getElementById("input-turno")){
+          document.getElementById("sin-turnos").textContent = "Todavía no se han añadido turnos.";
+        }
+      }
+
+      //Si se le da al boton de "quitar-turno", se borra el "input-turno", que es el fieldset
+      document.getElementById("quitar-turno").onclick = function(){
+        document.getElementById("input_turno").remove();
+      }
+    }
+
+    //Miramos si se le da click a "resumir-turnos"(el botón).
+    document.getElementById("resumir-turnos").onclick = function(){
+      //Cogemos todos los "section" y nos quedamos con el [1](que seria el segundo porque es un array, entonces empieza por 0. Sería el de turnos de equipo) y guardamos todos los "input" en la variable.
+      let turnos = document.querySelectorAll("section")[1].querySelectorAll("input");
+
+      //Creamos las variables para guardar datos.
+      let horas_totales = 0;
+      let minutos_totales = 0;
+      let turnos_largos = 0;
+
+      //Recorremos el array turnos, que contiene todos los input de antes.
+      for(let i = 0;i<turnos.length;i++){
+        minutos_totales = 0;
+
+        //Filtramos por lo que tengan id= "hora-empieza".
+        if(turnos[i].id == "hora-empieza"){
+
+          //Separamos las horas y minutos de el que hemos cogido y el siguiente, porque el siguiente seria "hora-termina"(Los separamos porque los input tienen type="time").
+          let [hora1,minutos1] = turnos[i+1].value.split(":").map(Number);
+          let [hora2,minutos2] = turnos[i].value.split(":").map(Number);
+
+          //Restamos los minutos totales
+          minutos_totales += minutos1-minutos2;
+
+          //Hacemos el cálculo de las horas totales.
+          horas_totales += (hora1) - (hora2) + (minutos_totales/60);
+
+          //Guardamos los turnos de mas de 8 horas
+          if(((hora1) - (hora2) + (minutos1-minutos2)/60)>8){
+            turnos_largos++;
+          }
+        }
+      }
+      
+      //Actualizamos los apartados aproximando como se ha pedido.
+      document.getElementById("horas-totales").textContent = Math.floor(horas_totales);
+      document.getElementById("media-turno").textContent = Math.round(horas_totales/(turnos.length/2));
+      document.getElementById("turnos-extensos").textContent = turnos_largos;
+    }
+    //Fin apartado 3.
+
+    //Apartado 4(hay más del apartado 4 dentro del apartado 2):
+    document.getElementById("actualizar-pantalla").onclick = function(){
+
+      //Actualizamos "texto-publico" según lo que ponga en el input "mensaje-publico";
+      document.getElementById("texto-publico").textContent = document.getElementById("mensaje-publico").value;
+      
+      //Creamos html para dar la información de la página y título, y lo actualizamos en "datos-ventana".
+      let html = "<h3>Título de la página </h3><p>" + document.title + "</p>" + 
+      "<h3>Tamaño de la pantalla </h3><p>Ancho: " + window.innerWidth + ". Alto: " + window.innerHeight;
+      document.getElementById("datos-ventana").innerHTML = html;
+    }
+    //Fin apartado 4.
+  </script>
+</body>
+</html>
